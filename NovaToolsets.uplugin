@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.1",
+	"VersionName": "0.1.0-beta.1",
 	"FriendlyName": "Nova Toolsets",
 	"Description": "Extra Unreal MCP toolsets: Niagara simulation stages, event handlers, local modules and node graph editing (works with the Niagara editor open), Niagara User Parameters panel layout, Blueprint variable/function metadata, implemented interfaces and a language-independent graph dump, and render target creation without modal dialogs.",
 	"Category": "Editor",

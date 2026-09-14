@@ -175,6 +175,7 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Blueprint")
 	static FNovaGraphDump DumpGraph(UBlueprint* Blueprint, FName GraphName = NAME_None);
+
 	/**
 	 * Lists the interfaces a Blueprint implements (Class Settings > Implemented Interfaces).
 	 *
