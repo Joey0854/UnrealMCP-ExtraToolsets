@@ -1,0 +1,29 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1",
+	"FriendlyName": "Nova Toolsets",
+	"Description": "Extra Unreal MCP toolsets: Niagara simulation stages, event handlers, local modules and node graph editing (works with the Niagara editor open), Blueprint variable/function metadata and a language-independent graph dump, and render target creation without modal dialogs.",
+	"Category": "Editor",
+	"CreatedBy": "Joey0854",
+	"CreatedByURL": "https://github.com/Joey0854",
+	"DocsURL": "https://github.com/Joey0854/UnrealMCP-ExtraToolsets",
+	"SupportURL": "https://github.com/Joey0854/UnrealMCP-ExtraToolsets/issues",
+	"EditorOnly": true,
+	"EnabledByDefault": true,
+	"CanContainContent": false,
+	"IsExperimentalVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "NovaToolsets",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit",
+			"TargetAllowList": [ "Editor" ]
+		}
+	],
+	"Plugins": [
+		{ "Name": "Niagara", "Enabled": true },
+		{ "Name": "ToolsetRegistry", "Enabled": true }
+	]
+}

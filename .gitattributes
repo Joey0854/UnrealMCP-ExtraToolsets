@@ -1,0 +1,5 @@
+* text=auto
+*.uplugin text eol=crlf
+*.cs text eol=crlf
+*.h text eol=crlf
+*.cpp text eol=crlf

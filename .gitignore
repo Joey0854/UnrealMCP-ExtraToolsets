@@ -1,0 +1,12 @@
+# Build output
+Binaries/
+Intermediate/
+
+# Local backups and editor files
+*.bak-*
+.vs/
+.vscode/
+.idea/
+*.sln
+*.suo
+*.user
