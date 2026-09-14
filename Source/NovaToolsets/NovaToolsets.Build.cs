@@ -26,6 +26,8 @@ public class NovaToolsets : ModuleRules
 			"NiagaraCore",
 			"NiagaraShader",
 			"NiagaraEditor",
+			// UHierarchyRoot / sections / categories behind the Niagara user parameter hierarchy.
+			"DataHierarchyEditor",
 			// Private dependencies of NiagaraEditor whose headers leak through NiagaraSystemViewModel.h,
 			// NiagaraEditorModule.h and the stack view model headers.
 			"AssetTools",

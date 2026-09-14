@@ -2,9 +2,9 @@
 
 Extra toolsets for **Unreal MCP**, the experimental Model Context Protocol server in Unreal Engine 5.8. They cover editor work the stock toolsets can't do, so an AI agent no longer needs you to click through it by hand:
 
-- **Niagara**: add, reorder and configure simulation stages and event handlers, place modules in their stacks, create local (scratch pad) modules, and set user parameter descriptions.
+- **Niagara**: add, reorder and configure simulation stages and event handlers, place modules in their stacks, create local (scratch pad) modules, set user parameter descriptions, organise the User Parameters panel into sections and categories, and find where each user parameter is referenced.
 - **Niagara node graphs**: read and edit module graphs, including Custom HLSL pins and data interface function specifiers such as `Attribute`.
-- **Blueprints**: set variable metadata (tooltips, clamp and slider ranges) and function metadata (Call In Editor), and dump a graph as compact text to check what was built.
+- **Blueprints**: set variable metadata (tooltips, clamp and slider ranges) and function metadata (Call In Editor), add or remove implemented interfaces, and dump a graph as compact text to check what was built.
 - **Render targets**: create and resize 2D and volume render targets without the modal dialogs that stall the game thread.
 
 The plugin folder is named `NovaToolsets` after the project it was written for. It does not depend on that project and ships no content assets.
@@ -52,6 +52,7 @@ The Unreal MCP server exposes toolsets through three gateway tools: `list_toolse
 | Toolset | Scope |
 |---|---|
 | `NovaToolsets.NovaToolset_Niagara` | Emitter stages, event handlers, stage modules, local modules, user parameter descriptions |
+| `NovaToolsets.NovaToolset_NiagaraUserParams` | User Parameters panel layout (sections and categories) and parameter reference scan |
 | `NovaToolsets.NovaToolset_NiagaraGraph` | Node graphs of local modules and module assets |
 | `NovaToolsets.NovaToolset_Blueprint` | Blueprint variable and function metadata, graph dump |
 | `NovaToolsets.NovaToolset_RenderTarget` | Creating and resizing 2D and volume render targets |
@@ -86,6 +87,14 @@ Parameter names in the generated schema are camelCase, as with other Toolset Reg
 | `ListLocalModules` | Lists a system's local modules |
 | `SetUserVariableDescription` | Sets a user parameter's description, including parameters of data interface types |
 
+**`NovaToolset_NiagaraUserParams`**
+
+| Tool | What it does |
+|---|---|
+| `GetUserParameterHierarchy` | Reads the section (tab) and category layout of the User Parameters panel |
+| `SetUserParameterHierarchy` | Replaces that layout, which is also shown in the Details panel of placed components |
+| `GetUserParameterUsage` | Lists where each user parameter is still referenced, to check before removing one with the stock `NiagaraToolset_System.RemoveUserVariables` |
+
 **`NovaToolset_NiagaraGraph`**
 
 | Tool | What it does |
@@ -108,6 +117,9 @@ Parameter names in the generated schema are camelCase, as with other Toolset Reg
 | `SetVariableMetadata` | Sets or removes `Tooltip`, `ClampMin`/`ClampMax`, `UIMin`/`UIMax` or other metadata on a member variable |
 | `SetFunctionMetadata` | Sets `CallInEditor`, `Tooltip`, `Category` or `Keywords` on a function. On custom events only `CallInEditor` is supported |
 | `DumpGraph` | Dumps a graph as one line per node, followed by its connections and set values; the output is the same in any editor language |
+| `ListInterfaces` | Lists the interfaces a Blueprint implements and the function graphs they created |
+| `AddInterface` | Adds a native or Blueprint interface (Class Settings > Implemented Interfaces > Add), with conflicts reported before anything is created |
+| `RemoveInterface` | Removes an interface, optionally keeping its function graphs as ordinary functions |
 
 **`NovaToolset_RenderTarget`**
 
@@ -134,11 +146,13 @@ Parameter names in the generated schema are camelCase, as with other Toolset Reg
 
 ## Tool status
 
+Everything in this repository compiles against UE 5.8. Not every tool has been run in the editor yet:
+
 | Tools | Status |
 |---|---|
-| Niagara stages, event handlers, stage modules and local modules; node graph tools; render target tools | Run in the editor on real systems |
-| Editing with the Niagara editor open; `SetFunctionSpecifier` (first version) | Built and used |
-| All `NovaToolset_Blueprint` tools; `SetUserVariableDescription`; the `SetFunctionSpecifier` fallback for nodes that were compiled but never opened | Written and code-reviewed, **not yet built or run** |
+| `NovaToolset_Niagara`: stages, event handlers, stage modules, local modules; all `NovaToolset_NiagaraGraph` tools; all `NovaToolset_RenderTarget` tools | Run in the editor on real systems, including with the Niagara editor open |
+| `ListInterfaces`, `AddInterface` (including its error paths); `GetUserParameterUsage`, `SetUserParameterHierarchy` | Run in the editor |
+| `RemoveInterface`, `SetVariableMetadata`, `SetFunctionMetadata`, `DumpGraph`, `SetUserVariableDescription`, `GetUserParameterHierarchy` | Compiled and code-reviewed, **not yet run** |
 
 Issues and pull requests are welcome.
 

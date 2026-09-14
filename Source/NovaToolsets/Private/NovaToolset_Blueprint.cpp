@@ -1,5 +1,6 @@
 #include "NovaToolset_Blueprint.h"
 
+#include "Animation/AnimBlueprint.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraphSchema_K2.h"
@@ -14,6 +15,7 @@
 #include "K2Node_Variable.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
+#include "Misc/PackageName.h"
 #include "ScopedTransaction.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NovaToolset_Blueprint)
@@ -199,6 +201,92 @@ namespace NovaToolsetBlueprint
 				}
 			}
 		}
+	}
+
+	/** Resolves a class path, a Blueprint Interface asset path or a unique class name to a class. */
+	UClass* ResolveInterfaceClass(const FString& InName)
+	{
+		const FString Name = InName.TrimStartAndEnd();
+		if (Name.IsEmpty())
+		{
+			return nullptr;
+		}
+		if (Name.StartsWith(TEXT("/")))
+		{
+			const FString ObjectPath = Name.Contains(TEXT(".")) ? Name : Name + TEXT(".") + FPackageName::GetShortName(Name);
+			if (UClass* Class = LoadObject<UClass>(nullptr, *ObjectPath, nullptr, LOAD_NoWarn | LOAD_Quiet))
+			{
+				return Class;
+			}
+			// A Blueprint Interface asset path names the Blueprint; its generated class is the interface.
+			const UBlueprint* InterfaceBlueprint = LoadObject<UBlueprint>(nullptr, *ObjectPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+			return InterfaceBlueprint ? InterfaceBlueprint->GeneratedClass.Get() : nullptr;
+		}
+		UClass* Class = FindFirstObject<UClass>(*Name, EFindFirstObjectOptions::NativeFirst);
+		if (Class == nullptr && Name.Len() > 1 && (Name[0] == TEXT('U') || Name[0] == TEXT('I')))
+		{
+			// Reflected native classes drop the C++ U/I prefix.
+			Class = FindFirstObject<UClass>(*Name.Mid(1), EFindFirstObjectOptions::NativeFirst);
+		}
+		return Class;
+	}
+
+	int32 FindImplementedInterface(const UBlueprint& Blueprint, const UClass* InterfaceClass)
+	{
+		return Blueprint.ImplementedInterfaces.IndexOfByPredicate([InterfaceClass](const FBPInterfaceDescription& Description)
+		{
+			return Description.Interface.Get() == InterfaceClass;
+		});
+	}
+
+	void DescribeInterfaces(const UBlueprint& Blueprint, FNovaBlueprintInterfacesInfo& Info)
+	{
+		for (const FBPInterfaceDescription& Description : Blueprint.ImplementedInterfaces)
+		{
+			if (Description.Interface)
+			{
+				Info.Interfaces.Add(Description.Interface->GetPathName());
+			}
+			for (const UEdGraph* Graph : Description.Graphs)
+			{
+				if (Graph)
+				{
+					Info.InterfaceGraphs.Add(Graph->GetName());
+				}
+			}
+		}
+	}
+
+	FString ImplementedInterfaceList(const UBlueprint& Blueprint)
+	{
+		FNovaBlueprintInterfacesInfo Info;
+		DescribeInterfaces(Blueprint, Info);
+		return Info.Interfaces.Num() > 0 ? FString::Join(Info.Interfaces, TEXT(", ")) : FString(TEXT("(none)"));
+	}
+
+	/**
+	 * Mirrors the checks FBlueprintEditorUtils::ImplementNewInterface makes while it adds graphs one by one,
+	 * so a conflict is reported before anything is created instead of leaving some graphs behind.
+	 */
+	bool CheckInterfaceFunctionsFit(const UBlueprint& Blueprint, const UClass& InterfaceClass, FString& OutReason)
+	{
+		for (TFieldIterator<UFunction> FunctionIt(&InterfaceClass, EFieldIteratorFlags::IncludeSuper); FunctionIt; ++FunctionIt)
+		{
+			const UFunction* Function = *FunctionIt;
+			const bool bIsAnimFunction = Function->HasMetaData(FBlueprintMetadata::MD_AnimBlueprintFunction);
+			if (bIsAnimFunction && !Blueprint.IsA<UAnimBlueprint>())
+			{
+				OutReason = FString::Printf(TEXT("the interface has animation functions and '%s' is not an Animation Blueprint"), *Blueprint.GetName());
+				return false;
+			}
+			const bool bNeedsGraph = (UEdGraphSchema_K2::CanKismetOverrideFunction(Function) && !UEdGraphSchema_K2::FunctionCanBePlacedAsEvent(Function)) || bIsAnimFunction;
+			if (bNeedsGraph && StaticFindObjectFast(UEdGraph::StaticClass(), const_cast<UBlueprint*>(&Blueprint), Function->GetFName()) != nullptr)
+			{
+				OutReason = FString::Printf(TEXT("the Blueprint already has a function or graph named '%s'"), *Function->GetName());
+				return false;
+			}
+		}
+		return true;
 	}
 }
 
@@ -418,6 +506,115 @@ FNovaGraphDump UNovaToolset_Blueprint::DumpGraph(UBlueprint* Blueprint, FName Gr
 
 	Result.Dump = FString::Join(Lines, TEXT("\n"));
 	return Result;
+}
+
+FNovaBlueprintInterfacesInfo UNovaToolset_Blueprint::ListInterfaces(UBlueprint* Blueprint)
+{
+	using namespace NovaToolsetBlueprint;
+
+	if (Blueprint == nullptr)
+	{
+		Error(TEXT("Blueprint is null."));
+		return {};
+	}
+	FNovaBlueprintInterfacesInfo Info;
+	DescribeInterfaces(*Blueprint, Info);
+	return Info;
+}
+
+FNovaBlueprintInterfacesInfo UNovaToolset_Blueprint::AddInterface(UBlueprint* Blueprint, const FString& Interface, bool bSave)
+{
+	using namespace NovaToolsetBlueprint;
+
+	if (Blueprint == nullptr)
+	{
+		Error(TEXT("Blueprint is null."));
+		return {};
+	}
+
+	// ImplementNewInterface asserts on a class it cannot find, so every check happens here first.
+	UClass* InterfaceClass = ResolveInterfaceClass(Interface);
+	if (InterfaceClass == nullptr)
+	{
+		Error(FString::Printf(TEXT("Interface '%s' not found. Use a class path such as /Script/Niagara.NiagaraParticleCallbackHandler or a Blueprint Interface asset path."), *Interface));
+		return {};
+	}
+	if (!FKismetEditorUtilities::IsClassABlueprintInterface(InterfaceClass))
+	{
+		Error(FString::Printf(TEXT("'%s' is not an interface."), *InterfaceClass->GetPathName()));
+		return {};
+	}
+	if (!FKismetEditorUtilities::CanBlueprintImplementInterface(Blueprint, InterfaceClass))
+	{
+		Error(FString::Printf(TEXT("'%s' cannot be implemented by '%s': it is not implementable in Blueprints or the parent class prohibits it."),
+			*InterfaceClass->GetPathName(), *Blueprint->GetName()));
+		return {};
+	}
+	if (FindImplementedInterface(*Blueprint, InterfaceClass) != INDEX_NONE)
+	{
+		Error(FString::Printf(TEXT("'%s' already implements '%s'."), *Blueprint->GetName(), *InterfaceClass->GetPathName()));
+		return {};
+	}
+	if (Blueprint->ParentClass && Blueprint->ParentClass->ImplementsInterface(InterfaceClass))
+	{
+		Error(FString::Printf(TEXT("'%s' already inherits '%s' from its parent class %s."),
+			*Blueprint->GetName(), *InterfaceClass->GetPathName(), *Blueprint->ParentClass->GetName()));
+		return {};
+	}
+	FString Reason;
+	if (!CheckInterfaceFunctionsFit(*Blueprint, *InterfaceClass, Reason))
+	{
+		Error(FString::Printf(TEXT("Cannot add '%s' to '%s': %s."), *InterfaceClass->GetPathName(), *Blueprint->GetName(), *Reason));
+		return {};
+	}
+
+	bool bAdded = false;
+	{
+		FScopedTransaction Transaction(LOCTEXT("AddInterface", "Nova Toolset: Add Interface"));
+		// ImplementNewInterface records nothing for undo on its own, and neither does the Class Settings panel.
+		Blueprint->Modify();
+		bAdded = FBlueprintEditorUtils::ImplementNewInterface(Blueprint, InterfaceClass->GetClassPathName());
+	}
+	if (!bAdded)
+	{
+		Error(FString::Printf(TEXT("Adding '%s' to '%s' failed; see LogBlueprint in the output log. Undo reverts any graphs it created."),
+			*InterfaceClass->GetPathName(), *Blueprint->GetName()));
+		return {};
+	}
+
+	FNovaBlueprintInterfacesInfo Info;
+	CompileAndSave(*Blueprint, bSave, Info.bCompiled, Info.bSaved);
+	DescribeInterfaces(*Blueprint, Info);
+	return Info;
+}
+
+FNovaBlueprintInterfacesInfo UNovaToolset_Blueprint::RemoveInterface(UBlueprint* Blueprint, const FString& Interface, bool bPreserveFunctions, bool bSave)
+{
+	using namespace NovaToolsetBlueprint;
+
+	if (Blueprint == nullptr)
+	{
+		Error(TEXT("Blueprint is null."));
+		return {};
+	}
+
+	UClass* InterfaceClass = ResolveInterfaceClass(Interface);
+	// RemoveInterface ensures when the interface is not implemented, so check first.
+	if (InterfaceClass == nullptr || FindImplementedInterface(*Blueprint, InterfaceClass) == INDEX_NONE)
+	{
+		Error(FString::Printf(TEXT("'%s' does not implement '%s'. Implemented interfaces: %s"),
+			*Blueprint->GetName(), *Interface, *ImplementedInterfaceList(*Blueprint)));
+		return {};
+	}
+
+	// Opens its own transaction and calls Modify. The Class Settings panel asks whether to keep the
+	// function graphs in a dialog first; bPreserveFunctions is that answer.
+	FBlueprintEditorUtils::RemoveInterface(Blueprint, InterfaceClass->GetClassPathName(), bPreserveFunctions);
+
+	FNovaBlueprintInterfacesInfo Info;
+	CompileAndSave(*Blueprint, bSave, Info.bCompiled, Info.bSaved);
+	DescribeInterfaces(*Blueprint, Info);
+	return Info;
 }
 
 #undef LOCTEXT_NAMESPACE

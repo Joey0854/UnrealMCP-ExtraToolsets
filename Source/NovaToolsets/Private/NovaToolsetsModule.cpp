@@ -7,6 +7,7 @@
 #include "NovaToolset_Blueprint.h"
 #include "NovaToolset_Niagara.h"
 #include "NovaToolset_NiagaraGraph.h"
+#include "NovaToolset_NiagaraUserParams.h"
 #include "NovaToolset_RenderTarget.h"
 
 // Registration mirrors NiagaraToolsetsModule.cpp: try at startup, retry once every module has
@@ -46,6 +47,7 @@ private:
 		UToolsetRegistry::RegisterToolsetClass(UNovaToolset_NiagaraGraph::StaticClass());
 		UToolsetRegistry::RegisterToolsetClass(UNovaToolset_RenderTarget::StaticClass());
 		UToolsetRegistry::RegisterToolsetClass(UNovaToolset_Blueprint::StaticClass());
+		UToolsetRegistry::RegisterToolsetClass(UNovaToolset_NiagaraUserParams::StaticClass());
 	}
 
 	void UnregisterToolsets()
@@ -60,6 +62,7 @@ private:
 		UToolsetRegistry::UnregisterToolsetClass(UNovaToolset_NiagaraGraph::StaticClass());
 		UToolsetRegistry::UnregisterToolsetClass(UNovaToolset_RenderTarget::StaticClass());
 		UToolsetRegistry::UnregisterToolsetClass(UNovaToolset_Blueprint::StaticClass());
+		UToolsetRegistry::UnregisterToolsetClass(UNovaToolset_NiagaraUserParams::StaticClass());
 	}
 
 	bool bToolsetsRegistered = false;

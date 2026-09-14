@@ -94,9 +94,31 @@ struct FNovaGraphDump
 	int32 LinkCount = 0;
 };
 
+/** Interfaces a Blueprint implements, read back after a change. */
+USTRUCT()
+struct FNovaBlueprintInterfacesInfo
+{
+	GENERATED_BODY()
+
+	/** Class paths of the interfaces this Blueprint implements itself, e.g. /Script/Niagara.NiagaraParticleCallbackHandler. Interfaces inherited from the parent class are not listed. */
+	UPROPERTY()
+	TArray<FString> Interfaces;
+
+	/** Function graphs created for interface functions that return values. Interface functions without outputs are events placed in the event graph instead. */
+	UPROPERTY()
+	TArray<FString> InterfaceGraphs;
+
+	/** False when the Blueprint has compile errors after the change. */
+	UPROPERTY()
+	bool bCompiled = false;
+
+	UPROPERTY()
+	bool bSaved = false;
+};
+
 /**
  * Blueprint editing the stock Blueprint toolset cannot do: metadata on member variables (tooltips,
- * numeric limits) and on functions (Call In Editor, tooltip, category, keywords), plus a compact,
+ * numeric limits), on functions (Call In Editor, tooltip, category, keywords), implemented interfaces, plus a compact,
  * language-independent graph dump for verifying graphs built by other tools.
  * Every write tool runs in an undo transaction, compiles the Blueprint, optionally saves it, and returns
  * a read-back of the result.
@@ -153,4 +175,37 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Blueprint")
 	static FNovaGraphDump DumpGraph(UBlueprint* Blueprint, FName GraphName = NAME_None);
+	/**
+	 * Lists the interfaces a Blueprint implements (Class Settings > Implemented Interfaces).
+	 *
+	 * @param Blueprint The Blueprint asset
+	 * @return Implemented interfaces and their function graphs
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Blueprint")
+	static FNovaBlueprintInterfacesInfo ListInterfaces(UBlueprint* Blueprint);
+
+	/**
+	 * Adds an interface to a Blueprint, like Class Settings > Implemented Interfaces > Add, then compiles.
+	 * Accepts native interfaces and Blueprint Interface assets. Interface functions that return values get
+	 * function graphs; the others become events to place in the event graph (e.g. Event Receive Particle Data).
+	 *
+	 * @param Blueprint The Blueprint asset
+	 * @param Interface Interface class path such as /Script/Niagara.NiagaraParticleCallbackHandler, a Blueprint Interface asset path such as /Game/BPI_Foo, or a unique class name
+	 * @param bSave Save the Blueprint package after compiling
+	 * @return Implemented interfaces after the change
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Blueprint")
+	static FNovaBlueprintInterfacesInfo AddInterface(UBlueprint* Blueprint, const FString& Interface, bool bSave = true);
+
+	/**
+	 * Removes an interface from a Blueprint, like the remove button in Class Settings, then compiles.
+	 *
+	 * @param Blueprint The Blueprint asset
+	 * @param Interface Interface class path, Blueprint Interface asset path, or unique class name
+	 * @param bPreserveFunctions Keep the interface's function graphs as ordinary functions instead of deleting them
+	 * @param bSave Save the Blueprint package after compiling
+	 * @return Implemented interfaces after the change
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Blueprint")
+	static FNovaBlueprintInterfacesInfo RemoveInterface(UBlueprint* Blueprint, const FString& Interface, bool bPreserveFunctions = false, bool bSave = true);
 };
